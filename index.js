@@ -14,7 +14,8 @@ const {
   fetchData,
   insertData,
   masterColumnName,
-  insertMasterColumnNames,
+  insertDataMappings,
+  getDataMappings,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
@@ -24,127 +25,128 @@ app.use(express.json());
 const SECRET_KEY = process.env.SECRET_KEY || 'B@judit0k02018';
 
 // function section
-const selectedColumns = [
-  'C',
-  'D',
-  'E',
-  'F',
-  'K',
-  'L',
-  'Q',
-  'R',
-  'T',
-  'U',
-  'V',
-  'W',
-  'X',
-  'Y',
-  'Z',
-  'AA',
-  'AB',
-  'AC',
-  'AD',
-  'AE',
-  'AF',
-  'AK',
-  'AN',
-  'AO',
-  'AP',
-  'AQ',
-  'AR',
-  'AS',
-  'AT',
-  'AU',
-  'AV',
-  'AW',
-  'AX',
-  'AY',
-  'AZ',
-  'BA',
-  'BB',
-  'BC',
-  'BD',
-  'BE',
-  'BG',
-  'BH',
-  'BI',
-  'BJ',
-  'BK',
-  'BL',
-  'BM',
-  'BN',
-  'CM',
-  'CN',
-  'CO',
-  'CP',
-  'CQ',
-  'CR',
-  'CS',
-  'CT',
-  'CU',
-  'CV',
-  'CW',
-  'CX',
-  'CY',
-  'CZ',
-  'DA',
-  'DB',
-  'DC',
-  'DD',
-  'DE',
-  'DF',
-  'DG',
-  'DW',
-  'DX',
-  'DY',
-  'DZ',
-  'EA',
-  'EB',
-  'EC',
-  'EJ',
-  'EK',
-  'EN',
-  'EO',
-  'EP',
-  'EQ',
-  'ER',
-  'ES',
-  'ET',
-  'EU',
-  'EZ',
-  'FA',
-  'FB',
-  'FC',
-  'FD',
-  'FE',
-  'FF',
-  'FG',
-  'FH',
-  'FJ',
-  'FO',
-  'FQ',
-  'FR',
-  'FS',
-  'FT',
-  'FU',
-  'FV',
-  'GD',
-  'GE',
-  'GH',
-  'GI',
-  'GP',
-  'GQ',
-  'GR',
-  'GS',
-];
+// const selectedColumns = [
+//   'C',
+//   'D',
+//   'E',
+//   'F',
+//   'K',
+//   'L',
+//   'Q',
+//   'R',
+//   'T',
+//   'U',
+//   'V',
+//   'W',
+//   'X',
+//   'Y',
+//   'Z',
+//   'AA',
+//   'AB',
+//   'AC',
+//   'AD',
+//   'AE',
+//   'AF',
+//   'AK',
+//   'AN',
+//   'AO',
+//   'AP',
+//   'AQ',
+//   'AR',
+//   'AS',
+//   'AT',
+//   'AU',
+//   'AV',
+//   'AW',
+//   'AX',
+//   'AY',
+//   'AZ',
+//   'BA',
+//   'BB',
+//   'BC',
+//   'BD',
+//   'BE',
+//   'BG',
+//   'BH',
+//   'BI',
+//   'BJ',
+//   'BK',
+//   'BL',
+//   'BM',
+//   'BN',
+//   'CM',
+//   'CN',
+//   'CO',
+//   'CP',
+//   'CQ',
+//   'CR',
+//   'CS',
+//   'CT',
+//   'CU',
+//   'CV',
+//   'CW',
+//   'CX',
+//   'CY',
+//   'CZ',
+//   'DA',
+//   'DB',
+//   'DC',
+//   'DD',
+//   'DE',
+//   'DF',
+//   'DG',
+//   'DW',
+//   'DX',
+//   'DY',
+//   'DZ',
+//   'EA',
+//   'EB',
+//   'EC',
+//   'EJ',
+//   'EK',
+//   'EN',
+//   'EO',
+//   'EP',
+//   'EQ',
+//   'ER',
+//   'ES',
+//   'ET',
+//   'EU',
+//   'EZ',
+//   'FA',
+//   'FB',
+//   'FC',
+//   'FD',
+//   'FE',
+//   'FF',
+//   'FG',
+//   'FH',
+//   'FJ',
+//   'FO',
+//   'FQ',
+//   'FR',
+//   'FS',
+//   'FT',
+//   'FU',
+//   'FV',
+//   'GD',
+//   'GE',
+//   'GH',
+//   'GI',
+//   'GP',
+//   'GQ',
+//   'GR',
+//   'GS',
+// ];
 
 // Helper function to convert column letters to index
-function excelColumnToIndex(col) {
+
+function excelColumnToIndex(column) {
   let index = 0;
-  for (let i = 0; i < col.length; i++) {
-    index = index * 26 + (col.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+  for (let i = 0; i < column.length; i++) {
+    index = index * 26 + (column.charCodeAt(i) - 64);
   }
-  return index - 1; // Convert to 0-based index
+  return index - 1;
 }
 
 function getDaysInMonth(year, month) {
@@ -277,48 +279,63 @@ app.post(
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
       }
+
       const { table_name, month, year } = req.body;
       const { username } = req.user;
 
+      // Get days in month
       const days = getDaysInMonth(year, month);
+
+      // Fetch column mappings from DB
+      const selectedColumns = await getDataMappings(table_name);
+      if (!selectedColumns || Object.keys(selectedColumns).length === 0) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid table or no mappings found' });
+      }
+
       // Load the Excel file
       const workbook = xlsx.readFile(req.file.path);
-      const sheetName = workbook.SheetNames[0]; // Select the first sheet
+      const sheetName = workbook.SheetNames[0]; // First sheet
       const worksheet = workbook.Sheets[sheetName];
 
-      // Convert the sheet to JSON (starting from row 7)
+      // Convert sheet to JSON (starting from row 7)
       const jsonData = xlsx.utils
-        .sheet_to_json(worksheet, { range: 7, header: 1 }) // Read as array
-        .slice(0, days) // Extract rows
+        .sheet_to_json(worksheet, { range: 7, header: 1 })
+        .slice(0, days) // Limit rows based on the month
         .map((row) =>
           Object.fromEntries(
-            selectedColumns.map((col) => [
-              col,
-              row[excelColumnToIndex(col)] || null,
+            Object.entries(selectedColumns).map(([headerCell, columnName]) => [
+              columnName,
+              row[excelColumnToIndex(headerCell)] || null,
             ])
           )
         );
 
-      // Insert into PostgreSQL
+      // Insert data into PostgreSQL
       const result = await insertData(
         username,
         table_name,
-        selectedColumns,
+        Object.values(selectedColumns),
         jsonData
       );
-
-      // Delete file after processing
-      fs.unlinkSync(req.file.path);
 
       res.json({ message: 'File processed successfully', result });
     } catch (err) {
       console.error('Error processing file:', err);
       res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      // Ensure file is deleted
+      if (req.file && req.file.path) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error('Error deleting file:', err);
+        });
+      }
     }
   }
 );
 
-app.post('/master_column_name', authenticateToken, async (req, res) => {
+app.post('/data_maping', authenticateToken, async (req, res) => {
   try {
     const { table_name, detail } = req.body;
 
@@ -326,7 +343,7 @@ app.post('/master_column_name', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid request body' });
     }
 
-    await insertMasterColumnNames(table_name, detail);
+    await insertDataMappings(table_name, detail);
 
     res.json({ message: 'Data inserted successfully' });
   } catch (err) {

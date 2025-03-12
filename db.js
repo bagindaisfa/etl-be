@@ -19,35 +19,49 @@ async function fetchData(tableName) {
 
 async function insertData(username, tableName, columnOrder, data) {
   try {
+    if (data.length === 0) {
+      console.log('No data to insert.');
+      return { message: 'No data inserted' };
+    }
+
+    // Clean and format data
     const cleanedData = data.map((row) =>
-      Object.fromEntries(
-        Object.entries(row).map(([key, value]) => [
-          key,
-          typeof value === 'string'
-            ? value.trim() === '-' // Convert "-" to null
-              ? null
-              : isNaN(value.trim()) // If value is non-numeric, keep as string
-              ? value.trim()
-              : Number(value.trim()) // Convert numeric strings to numbers
-            : value,
-        ])
+      columnOrder.map((col) =>
+        typeof row[col] === 'string'
+          ? row[col].trim() === '-'
+            ? null
+            : isNaN(row[col].trim())
+            ? row[col].trim()
+            : Number(row[col].trim())
+          : row[col]
       )
     );
-    const formattedData = cleanedData.map((row) =>
-      columnOrder.map((col) => row[col] || null)
-    );
 
-    const query = `
-        INSERT INTO ${tableName} VALUES ${formattedData
+    // Generate parameterized placeholders
+    const valuesPlaceholders = cleanedData
       .map(
-        (_, i) =>
-          `(gen_random_uuid(),'${username}',${columnOrder
-            .map((_, j) => `$${i * columnOrder.length + j + 1}`)
+        (_, rowIndex) =>
+          `(gen_random_uuid(), $1, ${columnOrder
+            .map(
+              (_, colIndex) =>
+                `$${rowIndex * columnOrder.length + colIndex + 2}`
+            )
             .join(', ')})`
       )
-      .join(', ')} ON CONFLICT (date) DO NOTHING;`;
+      .join(', ');
 
-    const values = formattedData.flat();
+    // Flatten values array
+    const values = [username, ...cleanedData.flat()];
+
+    const query = `
+        INSERT INTO ${tableName} (id, inserted_by, ${columnOrder.join(', ')})
+        VALUES ${valuesPlaceholders}
+        ON CONFLICT (date) DO NOTHING;`;
+
+    // Debugging logs
+    console.log('Query:', query);
+    console.log('Values count:', values.length);
+
     const res = await pool.query(query, values);
     return res;
   } catch (err) {
@@ -106,7 +120,7 @@ async function masterColumnName(tableName) {
   }
 }
 
-async function insertMasterColumnNames(tableName, details) {
+async function insertDataMappings(tableName, details) {
   try {
     const values = [];
     const placeholders = details
@@ -129,6 +143,23 @@ async function insertMasterColumnNames(tableName, details) {
   }
 }
 
+async function getDataMappings(tableName) {
+  try {
+    const res = await pool.query(
+      `SELECT header_cell, column_name FROM public.data_mapping WHERE table_name = $1;`,
+      [tableName]
+    );
+
+    return res.rows.reduce((acc, row) => {
+      acc[row.header_cell] = row.column_name;
+      return acc;
+    }, {});
+  } catch (err) {
+    console.error('Error fetching data mappings:', err);
+    throw err;
+  }
+}
+
 module.exports = {
   registerUser,
   updateUser,
@@ -136,5 +167,6 @@ module.exports = {
   fetchData,
   insertData,
   masterColumnName,
-  insertMasterColumnNames,
+  insertDataMappings,
+  getDataMappings,
 };
