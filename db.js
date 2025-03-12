@@ -58,10 +58,6 @@ async function insertData(username, tableName, columnOrder, data) {
         VALUES ${valuesPlaceholders}
         ON CONFLICT (date) DO NOTHING;`;
 
-    // Debugging logs
-    console.log('Query:', query);
-    console.log('Values count:', values.length);
-
     const res = await pool.query(query, values);
     return res;
   } catch (err) {
