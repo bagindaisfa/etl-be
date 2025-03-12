@@ -251,8 +251,28 @@ app.post('/login', async (req, res) => {
 
 app.get('/master_data', authenticateToken, async (req, res) => {
   try {
-    const result = await fetchData();
-    res.json(result.rows);
+    const {
+      page = 1,
+      limit = 10,
+      table_name,
+      start_date,
+      end_date,
+      inserted_by,
+    } = req.query;
+
+    if (!table_name) {
+      return res.status(400).json({ error: 'table_name is required' });
+    }
+
+    const result = await fetchData(
+      table_name,
+      page,
+      limit,
+      start_date,
+      end_date,
+      inserted_by
+    );
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -348,6 +368,34 @@ app.post('/data_maping', authenticateToken, async (req, res) => {
     res.json({ message: 'Data inserted successfully' });
   } catch (err) {
     console.error('Error inserting data:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.post('/table_headers', async (req, res) => {
+  try {
+    const { table_name, headers } = req.body;
+    const result = await insertHeaders(table_name, headers);
+    res
+      .status(201)
+      .json({ message: 'Headers saved successfully', id: result.id });
+  } catch (err) {
+    console.error('Error saving headers:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// GET: Retrieve nested headers
+app.get('/table_headers/:table_name', async (req, res) => {
+  try {
+    const { table_name } = req.params;
+    const result = await getHeaders(table_name);
+    if (!result) {
+      return res.status(404).json({ error: 'Headers not found' });
+    }
+    res.status(200).json(result.headers);
+  } catch (err) {
+    console.error('Error fetching headers:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

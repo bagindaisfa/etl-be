@@ -6,14 +6,54 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-async function fetchData(tableName) {
+async function fetchData(
+  tableName,
+  page,
+  limit,
+  startDate,
+  endDate,
+  insertedBy
+) {
   try {
-    const res = await pool.query(`SELECT * FROM ${tableName}`);
-    return res;
+    const offset = (page - 1) * limit;
+    const values = [limit, offset];
+    let whereClause = 'WHERE 1=1';
+
+    if (startDate && endDate) {
+      whereClause += ` AND date BETWEEN $${values.length + 1} AND $${
+        values.length + 2
+      }`;
+      values.push(startDate, endDate);
+    }
+
+    if (insertedBy) {
+      whereClause += ` AND inserted_by = $${values.length + 1}`;
+      values.push(insertedBy);
+    }
+
+    const query = `
+        SELECT * FROM ${tableName}
+        ${whereClause}
+        ORDER BY date DESC
+        LIMIT $1 OFFSET $2
+      `;
+
+    const res = await pool.query(query, values);
+
+    const countQuery = `SELECT COUNT(*) FROM ${tableName} ${whereClause}`;
+    const countResult = await pool.query(countQuery, values.slice(2)); // Remove LIMIT and OFFSET
+
+    const totalRows = parseInt(countResult.rows[0].count, 10);
+
+    return {
+      totalRows,
+      totalPages: Math.ceil(totalRows / limit),
+      currentPage: Number(page),
+      data: res.rows,
+    };
   } catch (err) {
     console.error(err);
-  } finally {
-    pool.end(); // Close the pool
+    throw err;
   }
 }
 
