@@ -239,12 +239,22 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Generate JWT token
     const token = jwt.sign(
       { id: user.id, username: user.username },
       SECRET_KEY,
       { expiresIn: '1h' }
     );
-    res.json({ message: 'Login successful', token });
+
+    // Store token in HttpOnly Cookie
+    res.cookie('auth_token', token, {
+      httpOnly: true, // Prevents JavaScript access
+      secure: true, // Use HTTPS in production
+      sameSite: 'Strict', // Protects against CSRF attacks
+      maxAge: 60 * 60 * 1000, // 1 hour expiration
+    });
+
+    res.json({ message: 'Login successful' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });
