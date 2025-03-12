@@ -16,6 +16,8 @@ const {
   masterColumnName,
   insertDataMappings,
   getDataMappings,
+  insertHeaders,
+  getHeaders,
 } = require('./db');
 const authenticateToken = require('./middleware');
 

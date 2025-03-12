@@ -196,6 +196,38 @@ async function getDataMappings(tableName) {
   }
 }
 
+async function insertHeaders(tableName, headers) {
+  try {
+    const query = `
+            INSERT INTO table_headers (table_name, headers)
+            VALUES ($1, $2) RETURNING id;
+        `;
+    const values = [tableName, headers];
+    const res = await pool.query(query, values);
+    return res.rows[0]; // Return inserted row ID
+  } catch (err) {
+    console.error('Database Insert Error:', err);
+    throw err;
+  }
+}
+
+async function getHeaders(tableName) {
+  try {
+    const query = `
+            SELECT headers FROM table_headers
+            WHERE table_name = $1
+            ORDER BY created_at DESC
+            LIMIT 1;
+        `;
+    const values = [tableName];
+    const res = await pool.query(query, values);
+    return res.rows.length > 0 ? res.rows[0] : null;
+  } catch (err) {
+    console.error('Database Fetch Error:', err);
+    throw err;
+  }
+}
+
 module.exports = {
   registerUser,
   updateUser,
@@ -205,4 +237,6 @@ module.exports = {
   masterColumnName,
   insertDataMappings,
   getDataMappings,
+  insertHeaders,
+  getHeaders,
 };
