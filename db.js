@@ -109,7 +109,7 @@ async function insertData(username, tableName, columnOrder, data) {
 async function registerUser(data) {
   try {
     const query =
-      'INSERT INTO users_authentication (username, password) VALUES ($1, $2) RETURNING id, username';
+      'INSERT INTO users_authentication (username, password, is_super_admin) VALUES ($1, $2, false) RETURNING id, username, is_super_admin';
     const res = await pool.query(query, [data.username, data.hashedPassword]);
     return res;
   } catch (err) {
@@ -122,7 +122,7 @@ async function updateUser(updateFields, index, values) {
   try {
     const query = `UPDATE users_authentication SET ${updateFields.join(
       ', '
-    )} WHERE id = $${index} RETURNING id, username`;
+    )} WHERE id = $${index} RETURNING id, username, is_super_admin`;
 
     const result = await pool.query(query, values);
     return result;
@@ -151,8 +151,7 @@ async function masterColumnName(tableName) {
     return res;
   } catch (err) {
     console.error(err);
-  } finally {
-    pool.end(); // Close the pool
+    throw err;
   }
 }
 
@@ -228,6 +227,17 @@ async function getHeaders(tableName) {
   }
 }
 
+async function getTableNames() {
+  try {
+    const query = `SELECT * FROM master_table_name;`;
+    const res = await pool.query(query);
+    return res.rows;
+  } catch (err) {
+    console.error('Table Name Fetch Error:', err);
+    throw err;
+  }
+}
+
 module.exports = {
   registerUser,
   updateUser,
@@ -239,4 +249,5 @@ module.exports = {
   getDataMappings,
   insertHeaders,
   getHeaders,
+  getTableNames,
 };

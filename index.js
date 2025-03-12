@@ -2,10 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
+const cors = require('cors');
 const multer = require('multer');
 const xlsx = require('xlsx');
 const fs = require('fs');
+const cookieParser = require('cookie-parser');
 
 const {
   registerUser,
@@ -18,11 +19,19 @@ const {
   getDataMappings,
   insertHeaders,
   getHeaders,
+  getTableNames,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
 const app = express();
 app.use(express.json());
+app.use(
+  cors({
+    origin: 'http://localhost:5173', // ✅ Allow requests from your frontend
+    credentials: true, // ✅ Allow cookies & authentication headers
+  })
+);
+app.use(cookieParser()); // Middleware to parse cookies
 
 const SECRET_KEY = process.env.SECRET_KEY || 'B@judit0k02018';
 
@@ -254,11 +263,16 @@ app.post('/login', async (req, res) => {
       maxAge: 60 * 60 * 1000, // 1 hour expiration
     });
 
-    res.json({ message: 'Login successful' });
+    res.json({ message: 'Login successful', user: result.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
+});
+
+app.post('/logout', (req, res) => {
+  res.clearCookie('auth_token'); // Clear the auth cookie
+  res.json({ message: 'Logged out successfully' });
 });
 
 app.get('/master_data', authenticateToken, async (req, res) => {
@@ -291,16 +305,20 @@ app.get('/master_data', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/master_column_name', authenticateToken, async (req, res) => {
-  try {
-    const { table_name } = req.body;
-    const result = await masterColumnName(table_name);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
+app.get(
+  '/master_column_name/:table_name',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { table_name } = req.params;
+      const result = await masterColumnName(table_name);
+      res.json(result.rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
   }
-});
+);
 
 app.post(
   '/upload',
@@ -408,6 +426,19 @@ app.get('/table_headers/:table_name', async (req, res) => {
     res.status(200).json(result.headers);
   } catch (err) {
     console.error('Error fetching headers:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.get('/table_name', async (req, res) => {
+  try {
+    const result = await getTableNames();
+    if (!result) {
+      return res.status(404).json({ error: 'Table Names not found' });
+    }
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('Error fetching table Names:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
