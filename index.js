@@ -191,7 +191,7 @@ app.get('/', (req, res) => {
 });
 
 // Register User
-app.post('/users/register', async (req, res) => {
+app.post('/users/register', authenticateToken, async (req, res) => {
   const { username, password } = req.body;
 
   try {
@@ -412,7 +412,7 @@ app.post('/data_maping', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/table_headers', async (req, res) => {
+app.post('/table_headers', authenticateToken, async (req, res) => {
   try {
     const { table_name, headers } = req.body;
     const result = await insertHeaders(table_name, headers);
@@ -426,7 +426,7 @@ app.post('/table_headers', async (req, res) => {
 });
 
 // GET: Retrieve nested headers
-app.get('/table_headers/:table_name', async (req, res) => {
+app.get('/table_headers/:table_name', authenticateToken, async (req, res) => {
   try {
     const { table_name } = req.params;
     const result = await getHeaders(table_name);
@@ -440,7 +440,7 @@ app.get('/table_headers/:table_name', async (req, res) => {
   }
 });
 
-app.get('/table_name', async (req, res) => {
+app.get('/table_name', authenticateToken, async (req, res) => {
   try {
     const result = await getTableNames();
     if (!result) {
