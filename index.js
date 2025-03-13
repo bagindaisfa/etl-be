@@ -24,12 +24,21 @@ const {
 } = require('./db');
 const authenticateToken = require('./middleware');
 
+const allowedOrigins = ['http://localhost:5173', 'http://151.106.112.134:5173'];
+
 const app = express();
 app.use(express.json());
+
 app.use(
   cors({
-    origin: 'http://localhost:5173', // ✅ Allow requests from your frontend
-    credentials: true, // ✅ Allow cookies & authentication headers
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
   })
 );
 app.use(cookieParser()); // Middleware to parse cookies
