@@ -268,7 +268,7 @@ app.post('/login', async (req, res) => {
     // Store token in HttpOnly Cookie
     res.cookie('auth_token', token, {
       httpOnly: true, // Prevents JavaScript access
-      secure: true, // Use HTTPS in production
+      secure: false, // Use HTTPS in production
       sameSite: 'Strict', // Protects against CSRF attacks
       maxAge: 60 * 60 * 1000, // 1 hour expiration
     });
