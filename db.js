@@ -215,8 +215,7 @@ async function getHeaders(tableName) {
     const query = `
             SELECT headers FROM table_headers
             WHERE table_name = $1
-            ORDER BY created_at DESC
-            LIMIT 1;
+            ORDER BY created_at;
         `;
     const values = [tableName];
     const res = await pool.query(query, values);
