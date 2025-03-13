@@ -143,6 +143,17 @@ async function login(username) {
   }
 }
 
+async function getUser() {
+  try {
+    const query = 'SELECT username FROM users_authentication';
+    const res = await pool.query(query);
+    return res;
+  } catch (err) {
+    console.error('Error get user:', err);
+    throw err;
+  }
+}
+
 async function masterColumnName(tableName) {
   try {
     const res = await pool.query(`SELECT column_name
@@ -228,7 +239,9 @@ async function getHeaders(tableName) {
 
 async function getTableNames() {
   try {
-    const query = `SELECT * FROM master_table_name;`;
+    const query = `SELECT table_name 
+    FROM information_schema.tables 
+    WHERE table_schema = 'public';`;
     const res = await pool.query(query);
     return res.rows;
   } catch (err) {
@@ -249,4 +262,5 @@ module.exports = {
   insertHeaders,
   getHeaders,
   getTableNames,
+  getUser,
 };

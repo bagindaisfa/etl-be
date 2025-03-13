@@ -20,6 +20,7 @@ const {
   insertHeaders,
   getHeaders,
   getTableNames,
+  getUser,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
@@ -439,6 +440,16 @@ app.get('/table_name', async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     console.error('Error fetching table Names:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.get('/get_users', authenticateToken, async (req, res) => {
+  try {
+    const result = await getUser();
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
