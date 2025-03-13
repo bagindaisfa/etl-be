@@ -33,7 +33,7 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
+        callback(null, origin); // Allow the requested origin
       } else {
         callback(new Error('Not allowed by CORS'));
       }
