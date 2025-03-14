@@ -25,10 +25,10 @@ async function fetchData(
     ];
 
     // ✅ Validate table name to prevent SQL injection
-    const allowedTables = ['master_data', 'other_table']; // Add allowed tables
-    if (!allowedTables.includes(tableName)) {
-      throw new Error('Invalid table name');
-    }
+    // const allowedTables = ['master_data', 'other_table']; // Add allowed tables
+    // if (!allowedTables.includes(tableName)) {
+    //   throw new Error('Invalid table name');
+    // }
 
     // ✅ Main query with LIMIT & OFFSET
     const whereClause = `WHERE date BETWEEN $3::DATE AND $4::DATE AND inserted_by = $5::TEXT`;
