@@ -24,7 +24,11 @@ const {
 } = require('./db');
 const authenticateToken = require('./middleware');
 
-const allowedOrigins = ['http://localhost:5173', 'http://151.106.112.134:5173'];
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://151.106.112.134:5173',
+  'https://etl-system-core.com',
+];
 
 const app = express();
 app.use(express.json());
