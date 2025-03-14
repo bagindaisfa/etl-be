@@ -16,33 +16,36 @@ async function fetchData(
 ) {
   try {
     const offset = (page - 1) * limit;
-    const values = [limit, offset];
-    let whereClause = 'WHERE 1=1';
+    const values = [
+      parseInt(limit, 10),
+      parseInt(offset, 10),
+      startDate,
+      endDate,
+      insertedBy,
+    ];
 
-    if (startDate && endDate) {
-      whereClause += ` AND date BETWEEN $${values.length + 1} AND $${
-        values.length + 2
-      }`;
-      values.push(startDate, endDate);
+    // ✅ Validate table name to prevent SQL injection
+    const allowedTables = ['master_data', 'other_table']; // Add allowed tables
+    if (!allowedTables.includes(tableName)) {
+      throw new Error('Invalid table name');
     }
 
-    if (insertedBy) {
-      whereClause += ` AND inserted_by = $${values.length + 1}`;
-      values.push(insertedBy);
-    }
-
+    // ✅ Main query with LIMIT & OFFSET
+    const whereClause = `WHERE date BETWEEN $3::DATE AND $4::DATE AND inserted_by = $5::TEXT`;
     const query = `
         SELECT * FROM ${tableName}
         ${whereClause}
-        ORDER BY date DESC
+        ORDER BY date ASC
         LIMIT $1 OFFSET $2
       `;
 
     const res = await pool.query(query, values);
 
-    const countQuery = `SELECT COUNT(*) FROM ${tableName} ${whereClause}`;
-    const countResult = await pool.query(countQuery, values.slice(2)); // Remove LIMIT and OFFSET
+    // ✅ Fix countQuery (startDate is now $1, not $3)
+    const countQuery = `SELECT COUNT(*) FROM ${tableName} WHERE date BETWEEN $1::DATE AND $2::DATE AND inserted_by = $3::TEXT`;
+    const countValues = values.slice(2); // ✅ Use only [startDate, endDate, insertedBy]
 
+    const countResult = await pool.query(countQuery, countValues);
     const totalRows = parseInt(countResult.rows[0].count, 10);
 
     return {
@@ -52,7 +55,7 @@ async function fetchData(
       data: res.rows,
     };
   } catch (err) {
-    console.error(err);
+    console.error('Database Query Error:', err);
     throw err;
   }
 }
@@ -209,10 +212,11 @@ async function getDataMappings(tableName) {
 async function insertHeaders(tableName, headers) {
   try {
     const query = `
-            INSERT INTO table_headers (table_name, headers)
-            VALUES ($1, $2) RETURNING id;
-        `;
-    const values = [tableName, headers];
+        INSERT INTO table_headers (table_name, headers)
+        VALUES ($1, $2) RETURNING id;
+      `;
+    const values = [tableName, JSON.stringify(headers)]; // Convert headers to JSON string
+
     const res = await pool.query(query, values);
     return res.rows[0]; // Return inserted row ID
   } catch (err) {
@@ -230,7 +234,8 @@ async function getHeaders(tableName) {
         `;
     const values = [tableName];
     const res = await pool.query(query, values);
-    return res.rows.length > 0 ? res.rows[0] : null;
+
+    return res.rows;
   } catch (err) {
     console.error('Database Fetch Error:', err);
     throw err;

@@ -365,10 +365,20 @@ app.post(
         .slice(0, days) // Limit rows based on the month
         .map((row) =>
           Object.fromEntries(
-            Object.entries(selectedColumns).map(([headerCell, columnName]) => [
-              columnName,
-              row[excelColumnToIndex(headerCell)] || null,
-            ])
+            Object.entries(selectedColumns).map(([headerCell, columnName]) => {
+              let value = row[excelColumnToIndex(headerCell)] || null;
+
+              // Check if this column is supposed to be a date
+              if (
+                columnName.toLowerCase().includes('date') &&
+                typeof value === 'number' &&
+                value > 40000
+              ) {
+                value = xlsx.SSF.format('yyyy-mm-dd', value); // Convert serial number to date
+              }
+
+              return [columnName, value];
+            })
           )
         );
 
@@ -433,7 +443,8 @@ app.get('/table_headers/:table_name', authenticateToken, async (req, res) => {
     if (!result) {
       return res.status(404).json({ error: 'Headers not found' });
     }
-    res.status(200).json(result.headers);
+
+    res.status(200).json(result);
   } catch (err) {
     console.error('Error fetching headers:', err);
     res.status(500).json({ error: 'Internal Server Error' });
