@@ -259,6 +259,42 @@ async function getTableNames() {
   }
 }
 
+async function insertDataCSV(tableName, username, rows) {
+  try {
+    const formattedRows = rows.map((row) => {
+      return [convertDateFormat(row[0]), ...row.slice(1)];
+    });
+
+    const query = `
+        INSERT INTO ${tableName} 
+        (date, time, value_1, value_2, value_3, value_4, value_5, value_6, value_7, 
+         value_8, value_9, value_10, value_11, value_12, value_13, value_14, value_15, value_16, inserted_by) 
+        VALUES ${formattedRows
+          .map(
+            (_, i) =>
+              `(${Array(18)
+                .fill(0)
+                .map((_, j) => `$${i * 18 + j + 1}`)
+                .join(', ')}, '${username}')`
+          )
+          .join(', ')}
+      `;
+
+    const flattenedValues = formattedRows.flat();
+
+    const res = await pool.query(query, flattenedValues);
+    return res.rows[0]; // Return inserted row ID
+  } catch (err) {
+    console.error('Database Insert Error:', err);
+    throw err;
+  }
+}
+
+function convertDateFormat(dateString) {
+  const [day, month, year] = dateString.split('/');
+  return `${year}-${month}-${day}`; // Convert to YYYY-MM-DD format
+}
+
 module.exports = {
   registerUser,
   updateUser,
@@ -272,4 +308,5 @@ module.exports = {
   getHeaders,
   getTableNames,
   getUser,
+  insertDataCSV,
 };

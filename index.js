@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const multer = require('multer');
 const xlsx = require('xlsx');
-const csv = require('csv-parser');
+const csvParser = require('csv-parser');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
 
@@ -22,6 +22,7 @@ const {
   getHeaders,
   getTableNames,
   getUser,
+  insertDataCSV,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
@@ -292,6 +293,60 @@ app.post(
           if (err) console.error('Error deleting file:', err);
         });
       }
+    }
+  }
+);
+
+app.post(
+  '/upload/csv',
+  authenticateToken,
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const { table_name } = req.body;
+      const { username } = req.user;
+
+      const rows = [];
+      let rowIndex = 0;
+
+      // Read CSV and extract data
+      fs.createReadStream(req.file.path)
+        .pipe(csvParser())
+        .on('data', (row) => {
+          rowIndex++;
+          if (rowIndex >= 21 && rowIndex <= 44) {
+            const { ...values } = row;
+
+            // Convert numeric values
+            const parsedValues = Object.values(values).map((v) =>
+              v ? v : null
+            );
+
+            rows.push([...parsedValues]);
+          }
+        })
+        .on('end', async () => {
+          try {
+            // Bulk insert into PostgreSQL
+            await insertDataCSV(table_name, username, rows);
+
+            res.json({ message: 'File processed successfully' });
+          } catch (err) {
+            console.error('Database Insert Error:', err);
+            res.status(500).json({ error: 'Failed to insert data' });
+          } finally {
+            fs.unlink(req.file.path, (err) => {
+              if (err) console.error('Error deleting file:', err);
+            });
+          }
+        });
+    } catch (err) {
+      console.error('File Processing Error:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
     }
   }
 );
