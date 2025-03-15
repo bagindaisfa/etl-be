@@ -81,14 +81,12 @@ async function insertData(username, tableName, columnOrder, data) {
     );
 
     // Generate parameterized placeholders
+    let paramIndex = 2; // Start after $1 (username)
     const valuesPlaceholders = cleanedData
       .map(
-        (_, rowIndex) =>
+        () =>
           `(gen_random_uuid(), $1, ${columnOrder
-            .map(
-              (_, colIndex) =>
-                `$${rowIndex * columnOrder.length + colIndex + 2}`
-            )
+            .map(() => `$${paramIndex++}`)
             .join(', ')})`
       )
       .join(', ');
@@ -96,10 +94,16 @@ async function insertData(username, tableName, columnOrder, data) {
     // Flatten values array
     const values = [username, ...cleanedData.flat()];
 
+    // ✅ Corrected ON CONFLICT clause
     const query = `
-        INSERT INTO ${tableName} (id, inserted_by, ${columnOrder.join(', ')})
-        VALUES ${valuesPlaceholders}
-        ON CONFLICT (date) DO NOTHING;`;
+          INSERT INTO ${tableName} (id, inserted_by, ${columnOrder.join(', ')})
+          VALUES ${valuesPlaceholders}
+          ON CONFLICT (date)
+          DO UPDATE SET
+              ${columnOrder
+                .map((col) => `${col} = EXCLUDED.${col}`)
+                .join(', ')},
+              inserted_by = EXCLUDED.inserted_by;`;
 
     const res = await pool.query(query, values);
     return res;
