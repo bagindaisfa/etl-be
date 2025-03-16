@@ -327,7 +327,7 @@ app.post(
         .pipe(csvParser())
         .on('data', (row) => {
           rowIndex++;
-          if (rowIndex >= range_start && rowIndex <= range_end - 1) {
+          if (rowIndex >= range_start - 1 && rowIndex <= range_end - 1) {
             const values = Object.values(row).map((v) => (v ? v : null));
             rows.push(values);
           }
