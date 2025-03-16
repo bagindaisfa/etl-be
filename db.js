@@ -259,31 +259,37 @@ async function getTableNames() {
   }
 }
 
-async function insertDataCSV(tableName, username, rows) {
+async function insertDataCSV(tableName, username, rows, columns) {
   try {
-    const formattedRows = rows.map((row) => {
-      return [convertDateFormat(row[0]), ...row.slice(1)];
-    });
+    // Ensure `inserted_by` is added to the columns
+    const allColumns = [...columns];
 
+    // Convert dates if a column contains "date"
+    const formattedRows = rows.map((row) =>
+      row.map((value, index) =>
+        columns[index].toLowerCase().includes('date')
+          ? convertDateFormat(value)
+          : value
+      )
+    );
+
+    // Construct the dynamic INSERT query
     const query = `
-        INSERT INTO ${tableName} 
-        (date, time, value_1, value_2, value_3, value_4, value_5, value_6, value_7, 
-         value_8, value_9, value_10, value_11, value_12, value_13, value_14, value_15, value_16, inserted_by) 
+        INSERT INTO ${tableName} (${allColumns.join(', ')}, inserted_by) 
         VALUES ${formattedRows
           .map(
             (_, i) =>
-              `(${Array(18)
+              `(${Array(allColumns.length)
                 .fill(0)
-                .map((_, j) => `$${i * 18 + j + 1}`)
+                .map((_, j) => `$${i * allColumns.length + j + 1}`)
                 .join(', ')}, '${username}')`
           )
           .join(', ')}
       `;
 
-    const flattenedValues = formattedRows.flat();
-
+    const flattenedValues = formattedRows.flat(); // Append username
     const res = await pool.query(query, flattenedValues);
-    return res.rows[0]; // Return inserted row ID
+    return res.rows[0];
   } catch (err) {
     console.error('Database Insert Error:', err);
     throw err;
@@ -293,6 +299,25 @@ async function insertDataCSV(tableName, username, rows) {
 function convertDateFormat(dateString) {
   const [day, month, year] = dateString.split('/');
   return `${year}-${month}-${day}`; // Convert to YYYY-MM-DD format
+}
+
+async function getTableColumns(tableName) {
+  try {
+    const query = `
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = $1 
+        AND column_name <> 'id'
+        AND column_name <> 'inserted_by'
+        AND column_name <> 'created_at'
+        ORDER BY ordinal_position;
+      `;
+    const result = await pool.query(query, [tableName]);
+    return result.rows.map((row) => row.column_name);
+  } catch (err) {
+    console.error('Error fetching table columns:', err);
+    throw err;
+  }
 }
 
 module.exports = {
@@ -309,4 +334,5 @@ module.exports = {
   getTableNames,
   getUser,
   insertDataCSV,
+  getTableColumns,
 };

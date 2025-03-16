@@ -23,6 +23,7 @@ const {
   getTableNames,
   getUser,
   insertDataCSV,
+  getTableColumns,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
@@ -232,7 +233,7 @@ app.post(
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const { table_name, month, year } = req.body;
+      const { table_name, month, year, range } = req.body;
       const { username } = req.user;
 
       // Get days in month
@@ -253,7 +254,7 @@ app.post(
 
       // Convert sheet to JSON (starting from row 7)
       const jsonData = xlsx.utils
-        .sheet_to_json(worksheet, { range: 7, header: 1 })
+        .sheet_to_json(worksheet, { range: range - 1, header: 1 })
         .slice(0, days) // Limit rows based on the month
         .map((row) =>
           Object.fromEntries(
@@ -307,8 +308,16 @@ app.post(
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const { table_name } = req.body;
+      const { table_name, range_start, range_end } = req.body;
       const { username } = req.user;
+
+      // Fetch column names dynamically from PostgreSQL
+      const columns = await getTableColumns(table_name);
+      if (!columns.length) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid table name or no columns found' });
+      }
 
       const rows = [];
       let rowIndex = 0;
@@ -318,21 +327,14 @@ app.post(
         .pipe(csvParser())
         .on('data', (row) => {
           rowIndex++;
-          if (rowIndex >= 21 && rowIndex <= 44) {
-            const { ...values } = row;
-
-            // Convert numeric values
-            const parsedValues = Object.values(values).map((v) =>
-              v ? v : null
-            );
-
-            rows.push([...parsedValues]);
+          if (rowIndex >= range_start && rowIndex <= range_end - 1) {
+            const values = Object.values(row).map((v) => (v ? v : null));
+            rows.push(values);
           }
         })
         .on('end', async () => {
           try {
-            // Bulk insert into PostgreSQL
-            await insertDataCSV(table_name, username, rows);
+            await insertDataCSV(table_name, username, rows, columns);
 
             res.json({ message: 'File processed successfully' });
           } catch (err) {
