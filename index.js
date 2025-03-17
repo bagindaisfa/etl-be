@@ -236,11 +236,8 @@ app.post(
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const { table_name, month, year, range } = req.body;
+      const { table_name, total_row, range } = req.body;
       const { username } = req.user;
-
-      // Get days in month
-      const days = getDaysInMonth(year, month);
 
       // Fetch column mappings from DB
       const selectedColumns = await getDataMappings(table_name);
@@ -258,7 +255,7 @@ app.post(
       // Convert sheet to JSON (starting from row 7)
       const jsonData = xlsx.utils
         .sheet_to_json(worksheet, { range: range - 1, header: 1 })
-        .slice(0, days) // Limit rows based on the month
+        .slice(0, total_row) // Limit rows based on the month
         .map((row) =>
           Object.fromEntries(
             Object.entries(selectedColumns).map(([headerCell, columnName]) => {
@@ -327,18 +324,17 @@ app.post(
 
       // Read CSV and extract data
       fs.createReadStream(req.file.path)
-        .pipe(csvParser())
+        .pipe(csvParser({ headers: true })) // Ensure headers are recognized
         .on('data', (row) => {
           rowIndex++;
           if (rowIndex >= range_start - 1 && rowIndex <= range_end - 1) {
-            const values = Object.values(row).map((v) => (v ? v : null));
+            const values = columns.map((col) => (row[col] ? row[col] : null)); // Ensure correct column mapping
             rows.push(values);
           }
         })
         .on('end', async () => {
           try {
             await insertDataCSV(table_name, username, rows, columns);
-
             res.json({ message: 'File processed successfully' });
           } catch (err) {
             console.error('Database Insert Error:', err);

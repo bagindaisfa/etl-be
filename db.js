@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 const format = require('pg-format');
+const dayjs = require('dayjs');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -66,6 +67,23 @@ async function fetchData(
   }
 }
 
+async function hasUniqueConstraint(tableName, columnName) {
+  const query = `
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = '${tableName}'::regclass
+    AND conkey::text LIKE '%' || (
+      SELECT attnum FROM pg_attribute
+      WHERE attrelid = '${tableName}'::regclass
+      AND attname = '${columnName}'
+    )::text || '%'
+    AND contype = 'u';
+  `;
+
+  const res = await pool.query(query);
+  return res.rows.length > 0; // Returns true if unique constraint exists
+}
+
 async function insertData(username, tableName, columnOrder, data) {
   try {
     if (data.length === 0) {
@@ -73,17 +91,59 @@ async function insertData(username, tableName, columnOrder, data) {
       return { message: 'No data inserted' };
     }
 
+    // Check if the table has a unique constraint on 'date'
+    const hasUniqueDate = await hasUniqueConstraint(tableName, 'date');
+
     // Clean and format data
     const cleanedData = data.map((row) =>
-      columnOrder.map((col) =>
-        typeof row[col] === 'string'
-          ? row[col].trim() === '-'
+      columnOrder.map((col) => {
+        let cellValue = row[col];
+
+        if (col.toLowerCase().includes('time')) {
+          if (
+            cellValue === null ||
+            cellValue === undefined ||
+            cellValue === ''
+          ) {
+            return '00:00:00'; // Or set to '00:00:00' if needed
+          }
+
+          if (typeof cellValue === 'number') {
+            // Convert Excel time format (fractional days) to HH:mm:ss
+            const hours = Math.floor(cellValue * 24);
+            const minutes = Math.round((cellValue * 24 - hours) * 60);
+            return dayjs()
+              .hour(hours)
+              .minute(minutes)
+              .second(0)
+              .format('HH:mm:ss');
+          }
+
+          return cellValue; // Keep as is if it's already a valid time string
+        } else if (col.toLowerCase().includes('date')) {
+          const date_value = isValidYYYYMMDD(cellValue)
+            ? cellValue
+            : convertDateFormat(cellValue);
+
+          return date_value;
+        } else {
+          if (
+            cellValue === null ||
+            cellValue === undefined ||
+            cellValue === ''
+          ) {
+            return 0; // Or set to '00:00:00' if needed
+          }
+        }
+
+        return typeof cellValue === 'string'
+          ? cellValue.trim() === '-'
             ? null
-            : isNaN(row[col].trim())
-            ? row[col].trim()
-            : Number(row[col].trim())
-          : row[col]
-      )
+            : isNaN(cellValue.trim())
+            ? cellValue.trim()
+            : Number(cellValue.trim())
+          : cellValue;
+      })
     );
 
     // Generate parameterized placeholders
@@ -100,16 +160,20 @@ async function insertData(username, tableName, columnOrder, data) {
     // Flatten values array
     const values = [username, ...cleanedData.flat()];
 
-    // ✅ Corrected ON CONFLICT clause
-    const query = `
-          INSERT INTO ${tableName} (id, inserted_by, ${columnOrder.join(', ')})
-          VALUES ${valuesPlaceholders}
-          ON CONFLICT (date)
-          DO UPDATE SET
-              ${columnOrder
-                .map((col) => `${col} = EXCLUDED.${col}`)
-                .join(', ')},
-              inserted_by = EXCLUDED.inserted_by;`;
+    let query = `
+      INSERT INTO ${tableName} (id, inserted_by, ${columnOrder.join(', ')})
+      VALUES ${valuesPlaceholders}
+    `;
+
+    // Only apply ON CONFLICT if 'date' has a unique constraint
+    if (hasUniqueDate) {
+      query += `
+        ON CONFLICT (date)
+        DO UPDATE SET
+            ${columnOrder.map((col) => `${col} = EXCLUDED.${col}`).join(', ')},
+            inserted_by = EXCLUDED.inserted_by;
+      `;
+    }
 
     const res = await pool.query(query, values);
     return res;
@@ -307,6 +371,10 @@ function convertDateFormat(dateString) {
   return `${year}-${month}-${day}`; // Convert to YYYY-MM-DD format
 }
 
+function isValidYYYYMMDD(dateStr) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+}
+
 async function getTableColumns(tableName) {
   try {
     const query = `
@@ -340,6 +408,23 @@ async function getTableExported(tableName) {
     console.error('Error fetching table columns:', err);
     throw err;
   }
+}
+
+async function hasUniqueConstraint(tableName, columnName) {
+  const query = `
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = '${tableName}'::regclass
+    AND conkey::text LIKE '%' || (
+      SELECT attnum FROM pg_attribute
+      WHERE attrelid = '${tableName}'::regclass
+      AND attname = '${columnName}'
+    )::text || '%'
+    AND contype = 'u';
+  `;
+
+  const res = await pool.query(query);
+  return res.rows.length > 0; // Returns true if unique constraint exists
 }
 
 module.exports = {
