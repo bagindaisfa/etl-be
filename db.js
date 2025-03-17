@@ -16,14 +16,16 @@ async function fetchData(
 ) {
   try {
     const offset = (page - 1) * limit;
-    const values = [
+    let values = [
       parseInt(limit, 10),
       parseInt(offset, 10),
       startDate,
       endDate,
-      insertedBy,
     ];
 
+    if (insertedBy.toLowerCase() !== 'all') {
+      values.push(insertedBy);
+    }
     // ✅ Validate table name to prevent SQL injection
     // const allowedTables = ['master_data', 'other_table']; // Add allowed tables
     // if (!allowedTables.includes(tableName)) {
@@ -31,7 +33,9 @@ async function fetchData(
     // }
 
     // ✅ Main query with LIMIT & OFFSET
-    const whereClause = `WHERE date BETWEEN $3::DATE AND $4::DATE AND inserted_by = $5::TEXT`;
+    const whereClause = `WHERE date BETWEEN $3::DATE AND $4::DATE ${
+      insertedBy.toLowerCase() === 'all' ? '' : 'AND inserted_by = $5::TEXT'
+    }`;
     const query = `
         SELECT * FROM ${tableName}
         ${whereClause}
@@ -42,7 +46,9 @@ async function fetchData(
     const res = await pool.query(query, values);
 
     // ✅ Fix countQuery (startDate is now $1, not $3)
-    const countQuery = `SELECT COUNT(*) FROM ${tableName} WHERE date BETWEEN $1::DATE AND $2::DATE AND inserted_by = $3::TEXT`;
+    const countQuery = `SELECT COUNT(*) FROM ${tableName} WHERE date BETWEEN $1::DATE AND $2::DATE ${
+      insertedBy.toLowerCase() === 'all' ? '' : 'AND inserted_by = $3::TEXT'
+    }`;
     const countValues = values.slice(2); // ✅ Use only [startDate, endDate, insertedBy]
 
     const countResult = await pool.query(countQuery, countValues);
@@ -320,6 +326,22 @@ async function getTableColumns(tableName) {
   }
 }
 
+async function getTableExported(tableName) {
+  try {
+    const query = `
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = $1
+      ORDER BY ordinal_position;
+    `;
+    const result = await pool.query(query, [tableName]);
+    return result.rows.map((row) => row.column_name);
+  } catch (err) {
+    console.error('Error fetching table columns:', err);
+    throw err;
+  }
+}
+
 module.exports = {
   registerUser,
   updateUser,
@@ -335,4 +357,5 @@ module.exports = {
   getUser,
   insertDataCSV,
   getTableColumns,
+  getTableExported,
 };

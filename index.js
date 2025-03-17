@@ -8,6 +8,8 @@ const xlsx = require('xlsx');
 const csvParser = require('csv-parser');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
+const ExcelJS = require('exceljs');
+const dayjs = require('dayjs');
 
 const {
   registerUser,
@@ -24,6 +26,7 @@ const {
   getUser,
   insertDataCSV,
   getTableColumns,
+  getTableExported,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
@@ -352,6 +355,69 @@ app.post(
     }
   }
 );
+
+app.get('/export', async (req, res) => {
+  try {
+    const { table_name, start_date, end_date, inserted_by } = req.query;
+
+    const columns = await getTableExported(table_name);
+
+    if (columns.length === 0) {
+      return res.status(400).json({ error: 'Table not found or empty' });
+    }
+
+    // Fetch table data
+    const dataResult = await fetchData(
+      table_name,
+      1,
+      100,
+      start_date,
+      end_date,
+      inserted_by
+    );
+    const rows = dataResult.data;
+
+    // Create Excel Workbook and Worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(table_name);
+
+    // Add Column Headers
+    worksheet.addRow(columns);
+
+    // Add Data Rows
+    rows.forEach((row) => {
+      worksheet.addRow(
+        columns.map((col) => {
+          let value = row[col];
+
+          // Check if the column is a date field
+          if (col.toLowerCase().includes('date') && value) {
+            value = dayjs(value).format('YYYY-MM-DD'); // Ensure correct format
+          }
+
+          return value;
+        })
+      );
+    });
+
+    // Set response headers
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${table_name}_${start_date}_${end_date}.xlsx"`
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+
+    // Write Excel file to response
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Export Error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 app.post('/data_maping', authenticateToken, async (req, res) => {
   try {
