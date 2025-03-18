@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const multer = require('multer');
 const xlsx = require('xlsx');
+const { parse } = require('csv-parse');
 const csvParser = require('csv-parser');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
@@ -27,6 +28,7 @@ const {
   insertDataCSV,
   getTableColumns,
   getTableExported,
+  insertDataCSVFormated,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
@@ -299,6 +301,63 @@ app.post(
 );
 
 app.post(
+  '/upload/csv-formated',
+  authenticateToken,
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const { table_name, range_start, range_end } = req.body;
+      const { username } = req.user;
+
+      // Fetch column names dynamically from PostgreSQL
+      const columns = await getTableColumns(table_name);
+      if (!columns.length) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid table name or no columns found' });
+      }
+
+      const rows = [];
+      let rowIndex = 0;
+
+      // Read CSV and extract data
+      fs.createReadStream(req.file.path)
+        .pipe(parse({ delimiter: ';', from_line: range_start })) // Ensure headers are recognized
+        .on('data', (row) => {
+          rowIndex++;
+
+          if (rowIndex <= range_end) {
+            const values = Object.values(row).flatMap((v) =>
+              typeof v === 'string' ? v.split(';') : v
+            );
+            rows.push(values);
+          }
+        })
+        .on('end', async () => {
+          try {
+            await insertDataCSVFormated(table_name, username, rows, columns);
+            res.json({ message: 'File processed successfully' });
+          } catch (err) {
+            console.error('Database Insert Error:', err);
+            res.status(500).json({ error: 'Failed to insert data' });
+          } finally {
+            fs.unlink(req.file.path, (err) => {
+              if (err) console.error('Error deleting file:', err);
+            });
+          }
+        });
+    } catch (err) {
+      console.error('File Processing Error:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+);
+
+app.post(
   '/upload/csv',
   authenticateToken,
   upload.single('file'),
@@ -324,11 +383,12 @@ app.post(
 
       // Read CSV and extract data
       fs.createReadStream(req.file.path)
-        .pipe(csvParser({ headers: true })) // Ensure headers are recognized
+        .pipe(csvParser())
         .on('data', (row) => {
           rowIndex++;
+
           if (rowIndex >= range_start - 1 && rowIndex <= range_end - 1) {
-            const values = columns.map((col) => (row[col] ? row[col] : null)); // Ensure correct column mapping
+            const values = Object.values(row).map((v) => (v ? v : null));
             rows.push(values);
           }
         })

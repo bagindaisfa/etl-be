@@ -329,6 +329,77 @@ async function getTableNames() {
   }
 }
 
+async function insertDataCSVFormated(tableName, username, rows, columns) {
+  try {
+    // Ensure `inserted_by` is added to the columns
+    const allColumns = [...columns];
+
+    const formatDate = (dateStr) => {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        let [day, month, year] = parts;
+
+        // Convert two-digit year to four-digit year (assuming 20xx)
+        if (year.length === 2) {
+          year = `20${year}`;
+        }
+
+        return `${year}-${month}-${day}`;
+      }
+      return dateStr; // Return unchanged if not in expected format
+    };
+
+    const formatTime = (timeStr) => {
+      // Ensure it's a string and replace dots with colons
+      return typeof timeStr === 'string'
+        ? timeStr.replace(/\./g, ':')
+        : timeStr;
+    };
+
+    const formatNumber = (numStr) => {
+      if (typeof numStr === 'string' && numStr.includes(',')) {
+        return numStr.replace(/,/g, '.'); // Replace commas with dots
+      }
+      return numStr;
+    };
+
+    // Convert dates if a column contains "date"
+
+    const formattedRows = rows.map((row) =>
+      row.map((value, index) =>
+        columns[index]?.toLowerCase().includes('date')
+          ? isValidYYYYMMDD(value)
+            ? value
+            : formatDate(value)
+          : columns[index]?.toLowerCase().includes('time')
+          ? formatTime(value)
+          : formatNumber(value)
+      )
+    );
+
+    // Construct the dynamic INSERT query
+    const query = `
+        INSERT INTO ${tableName} (${allColumns.join(', ')}, inserted_by) 
+        VALUES ${formattedRows
+          .map(
+            (_, i) =>
+              `(${Array(allColumns.length)
+                .fill(0)
+                .map((_, j) => `$${i * allColumns.length + j + 1}`)
+                .join(', ')}, '${username}')`
+          )
+          .join(', ')}
+      `;
+
+    const flattenedValues = formattedRows.flat(); // Append username
+    const res = await pool.query(query, flattenedValues);
+    return res.rows[0];
+  } catch (err) {
+    console.error('Database Insert Error:', err);
+    throw err;
+  }
+}
+
 async function insertDataCSV(tableName, username, rows, columns) {
   try {
     // Ensure `inserted_by` is added to the columns
@@ -443,4 +514,5 @@ module.exports = {
   insertDataCSV,
   getTableColumns,
   getTableExported,
+  insertDataCSVFormated,
 };
