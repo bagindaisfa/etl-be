@@ -29,6 +29,7 @@ const {
   getTableColumns,
   getTableExported,
   insertDataCSVFormated,
+  fetchDataExport,
 } = require('./db');
 const authenticateToken = require('./middleware');
 
@@ -423,10 +424,8 @@ app.get('/export', async (req, res) => {
     }
 
     // Fetch table data
-    const dataResult = await fetchData(
+    const dataResult = await fetchDataExport(
       table_name,
-      1,
-      100,
       start_date,
       end_date,
       inserted_by

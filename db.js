@@ -67,6 +67,35 @@ async function fetchData(
   }
 }
 
+async function fetchDataExport(tableName, startDate, endDate, insertedBy) {
+  try {
+    let values = [startDate, endDate];
+
+    if (insertedBy.toLowerCase() !== 'all') {
+      values.push(insertedBy);
+    }
+
+    // ✅ Main query with LIMIT & OFFSET
+    const whereClause = `WHERE date BETWEEN $1::DATE AND $2::DATE ${
+      insertedBy.toLowerCase() === 'all' ? '' : 'AND inserted_by = $3::TEXT'
+    }`;
+    const query = `
+        SELECT * FROM ${tableName}
+        ${whereClause}
+        ORDER BY date ASC
+      `;
+
+    const res = await pool.query(query, values);
+
+    return {
+      data: res.rows,
+    };
+  } catch (err) {
+    console.error('Database Query Error:', err);
+    throw err;
+  }
+}
+
 async function hasUniqueConstraint(tableName, columnName) {
   const query = `
     SELECT conname
@@ -515,4 +544,5 @@ module.exports = {
   getTableColumns,
   getTableExported,
   insertDataCSVFormated,
+  fetchDataExport,
 };
