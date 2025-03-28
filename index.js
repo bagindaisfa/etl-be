@@ -385,11 +385,11 @@ app.post(
 
       // Read CSV and extract data
       fs.createReadStream(req.file.path)
-        .pipe(csvParser())
+        .pipe(csvParser({ headers: true, skipEmptyLines: true }))
         .on('data', (row) => {
           rowIndex++;
 
-          if (rowIndex >= range_start - 1 && rowIndex <= range_end - 1) {
+          if (rowIndex >= range_start && rowIndex <= range_end) {
             const values = Object.values(row).map((v) => (v ? v : null));
             rows.push(values);
           }

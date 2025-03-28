@@ -437,7 +437,7 @@ async function insertDataCSV(tableName, username, rows, columns) {
     // Convert dates if a column contains "date"
     const formattedRows = rows.map((row) =>
       row.map((value, index) =>
-        columns[index].toLowerCase().includes('date')
+        columns[index]?.toLowerCase().includes('date')
           ? convertDateFormat(value)
           : value
       )
