@@ -239,7 +239,7 @@ app.post(
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const { table_name, total_row, range } = req.body;
+      const { table_name, total_row, range, sheet_number } = req.body;
       const { username } = req.user;
 
       // Fetch column mappings from DB
@@ -252,7 +252,8 @@ app.post(
 
       // Load the Excel file
       const workbook = xlsx.readFile(req.file.path);
-      const sheetName = workbook.SheetNames[0]; // First sheet
+      const sheetIndex = Number(sheet_number);
+      const sheetName = workbook.SheetNames[sheetIndex - 1]; // First sheet
       const worksheet = workbook.Sheets[sheetName];
 
       // Convert sheet to JSON (starting from row 7)
