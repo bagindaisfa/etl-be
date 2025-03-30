@@ -455,11 +455,21 @@ async function insertDataCSV(tableName, username, rows, columns) {
                 .join(', ')}, '${username}')`
           )
           .join(', ')}
-      `;
+          ON CONFLICT (date, time) DO NOTHING`;
 
     const flattenedValues = formattedRows.flat(); // Append username
     const res = await pool.query(query, flattenedValues);
-    return res.rows[0];
+    if (res.rowCount <= 0) {
+      console.error('Database Insert Error: Data duplicated!');
+      return {
+        isError: true,
+        message: 'Database Insert Error: Data duplicated!',
+      };
+    }
+    return {
+      isError: false,
+      message: 'File processed successfully',
+    };
   } catch (err) {
     console.error('Database Insert Error:', err);
     throw err;

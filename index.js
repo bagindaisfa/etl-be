@@ -396,8 +396,17 @@ app.post(
         })
         .on('end', async () => {
           try {
-            await insertDataCSV(table_name, username, rows, columns);
-            res.json({ message: 'File processed successfully' });
+            const result = await insertDataCSV(
+              table_name,
+              username,
+              rows,
+              columns
+            );
+            if (result.isError) {
+              res.status(500).json({ error: result.message });
+            } else {
+              res.json({ message: result.message });
+            }
           } catch (err) {
             console.error('Database Insert Error:', err);
             res.status(500).json({ error: 'Failed to insert data' });
