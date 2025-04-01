@@ -388,9 +388,11 @@ app.post(
         .pipe(csvParser({ headers: true, skipEmptyLines: true }))
         .on('data', (row) => {
           rowIndex++;
-
           if (rowIndex >= range_start && rowIndex <= range_end) {
-            const values = Object.values(row).map((v) => (v ? v : null));
+            let values = Object.values(row).map((v) => (v ? v : null));
+            if (values.length > columns.length) {
+              values = values.slice(0, columns.length);
+            }
             rows.push(values);
           }
         })

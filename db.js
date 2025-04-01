@@ -435,13 +435,14 @@ async function insertDataCSV(tableName, username, rows, columns) {
     const allColumns = [...columns];
 
     // Convert dates if a column contains "date"
-    const formattedRows = rows.map((row) =>
-      row.map((value, index) =>
+    const formattedRows = rows.map((row) => [
+      ...row.map((value, index) =>
         columns[index]?.toLowerCase().includes('date')
           ? convertDateFormat(value)
           : value
-      )
-    );
+      ),
+      username,
+    ]);
 
     // Construct the dynamic INSERT query
     const query = `
@@ -449,13 +450,13 @@ async function insertDataCSV(tableName, username, rows, columns) {
         VALUES ${formattedRows
           .map(
             (_, i) =>
-              `(${Array(allColumns.length)
+              `(${Array(allColumns.length + 1)
                 .fill(0)
-                .map((_, j) => `$${i * allColumns.length + j + 1}`)
-                .join(', ')}, '${username}')`
+                .map((_, j) => `$${i * (allColumns.length + 1) + j + 1}`)
+                .join(', ')})`
           )
           .join(', ')}
-          ON CONFLICT (date, time) DO NOTHING`;
+          ON CONFLICT (date, time) DO NOTHING;`;
 
     const flattenedValues = formattedRows.flat(); // Append username
     const res = await pool.query(query, flattenedValues);
@@ -477,8 +478,12 @@ async function insertDataCSV(tableName, username, rows, columns) {
 }
 
 function convertDateFormat(dateString) {
-  const [day, month, year] = dateString.split('/');
-  return `${year}-${month}-${day}`; // Convert to YYYY-MM-DD format
+  if (dateString) {
+    const [day, month, year] = dateString.split('/');
+    return `${year}-${month}-${day}`; // Convert to YYYY-MM-DD format
+  } else {
+    return '';
+  }
 }
 
 function isValidYYYYMMDD(dateStr) {
