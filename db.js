@@ -459,7 +459,8 @@ async function insertDataCSV(tableName, username, rows, columns) {
           ON CONFLICT (date, time) DO NOTHING;`;
 
     const flattenedValues = formattedRows.flat(); // Append username
-    const res = await pool.query(query, flattenedValues);
+    const newValues = flattenedValues.map((val) => (val === null ? 0 : val));
+    const res = await pool.query(query, newValues);
     if (res.rowCount <= 0) {
       console.error('Database Insert Error: Data duplicated!');
       return {
